@@ -33,7 +33,12 @@ struct Vec2
     {
         return Vec2<T>(u * f, v * f);
     }
-    inline T operator[](int index) const
+    inline T& operator[](int index)
+    {
+        return raw[index];
+    }
+    //有时候类会被声明为const的，就只能用const函数
+    inline const T& operator[](int index) const
     {
         return raw[index];
     }
@@ -69,11 +74,20 @@ struct Vec3
     }
     inline Vec3<T> operator-(const Vec3<T>& v) const
     {
-        return Vec2<T>(x - v.x, y - v.y. z - v.z);
+        return Vec3<T>(x - v.x, y - v.y, z - v.z);
     }
     inline Vec3<T> operator*(float f) const
     {
-        return Vec2<T>(x * f, y * f, z * f);
+        return Vec3<T>(x * f, y * f, z * f);
+    }
+    inline T& operator[](int index)
+    {
+        return raw[index];
+    }
+    //有时候类会被声明为const的，就只能用const函数
+    inline const T& operator[](int index) const
+    {
+        return raw[index];
     }
     inline T operator*(const Vec3<T>& v) const
     {

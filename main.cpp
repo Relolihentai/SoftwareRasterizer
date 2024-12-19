@@ -8,6 +8,8 @@ const TGAColor green = TGAColor(0, 255, 0, 255);
 const TGAColor blue = TGAColor(0, 0, 255, 255);
 const int width = 1000;
 const int height = 1000;
+
+const Vec3f light_dir(0, 0, -1);
 Model *model = NULL;
 
 void DrawLine(int x0, int y0, int x1, int y1, TGAImage& image, const TGAColor& color)
@@ -90,6 +92,14 @@ void DrawLine(Vec2i p0, Vec2i p1, TGAImage& image, const TGAColor& color)
     }
 }
 
+Vec3f barycentric(Vec3f *pts, Vec3f p)
+{
+    Vec3f u = Vec3f(pts[1][0] - pts[0][0], pts[2][0] - pts[0][0], pts[0][0] - p[0]) 
+            ^ Vec3f(pts[1][1] - pts[0][1], pts[2][1] - pts[0][1], pts[0][1] - p[1]);
+    if (std::abs(u.z) < 1e-6) return Vec3f(-1, -1, -1);
+    return Vec3f(1.0 - (u.x + u.y) / u.z, u.x / u.z, u.y / u.z);
+}
+
 Vec3f barycentric(Vec2i *pts, Vec2i P) {
     Vec3f u = Vec3f(pts[2][0]-pts[0][0], pts[1][0]-pts[0][0], pts[0][0]-P[0])
             ^ Vec3f(pts[2][1]-pts[0][1], pts[1][1]-pts[0][1], pts[0][1]-P[1]);
@@ -121,39 +131,40 @@ Vec3f barycentric(Vec2i *pts, Vec2i P) {
     // float a = 1 - b - c;
     // //std::cout << "a " << a << " b " << b << " c " << c << std::endl;
     // return Vec3f(a, b, c);
-} 
+}
 
+void DrawTriangle(Vec3f* pts, float* zBuffer, TGAImage& image, const TGAColor& color)
+{
+    Vec2f bboxmin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
+    Vec2f bboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
+    Vec2f clamp(image.get_width() - 1, image.get_height() - 1);
+    for (int i = 0; i < 3; i++)
+    {
+        for (int j = 0; j < 2; j++)
+        {
+            bboxmin[j] = std::max(0.0f, std::min(bboxmin[j], pts[i][j]));
+            bboxmax[j] = std::min(clamp[j], std::max(bboxmax[j], pts[i][j]));
+        }
+    }
+    Vec3f p;
+    for (p.x = bboxmin.x; p.x <= bboxmax.x; p.x++)
+    {
+        for (p.y = bboxmin.y; p.y <= bboxmax.y; p.y++)
+        {
+            Vec3f bc_screen = barycentric(pts, p);
+            if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0) continue;
+            p.z = 0;
+            for (int i = 0; i < 3; i++) p.z += pts[i][2] * bc_screen[i];
+            if (zBuffer[int(p.x + p.y * width)] < p.z)
+            {
+                zBuffer[int(p.x + p.y * width)] = p.z;
+                image.set(p.x, p.y, color);
+            }
+        }
+    }
+}
 void DrawTriangle(Vec2i* pts, TGAImage& image, const TGAColor& color)
 {
-    // if (t0.y > t1.y) std::swap(t0, t1);
-    // if (t0.y > t2.y) std::swap(t0, t2);
-    // if (t1.y > t2.y) std::swap(t1, t2);
-
-    // int th = t2.y - t0.y;
-    // int sh = t1.y - t0.y + 1;
-    // int sh2 = t2.y - t1.y + 1;
-    // for (int y = t0.y; y <= t2.y; y++)
-    // {
-    //     float alpha = (float)(y - t0.y) / th;
-    //     Vec2i A = t0 + (t2 - t0) * alpha;
-    //     Vec2i B;
-    //     if (y <= t1.y)
-    //     {
-    //         float beta = (float)(y - t0.y) / sh;
-    //         B = t0 + (t1 - t0) * beta;
-    //     }
-    //     else 
-    //     {
-    //         float beta = (float)(y - t1.y) / sh2;
-    //         B = t1 + (t2 - t1) * beta;
-    //     }
-    //     if (A.x > B.x) std::swap(A, B);
-    //     for (int j = A.x; j <= B.x; j++)
-    //     {
-    //         image.set(j, y, color);
-    //     }
-    // }
-
     Vec2i bboxmin(image.get_width() - 1, image.get_height() - 1);
     Vec2i bboxmax(0, 0);
     Vec2i clamp(image.get_width() - 1, image.get_height() - 1);
@@ -172,26 +183,32 @@ void DrawTriangle(Vec2i* pts, TGAImage& image, const TGAColor& color)
         {
             Vec3f bc_screen = barycentric(pts, p);
             if (bc_screen.x < 0 || bc_screen.y < 0 || bc_screen.z < 0) continue;
+
             image.set(p.x, p.y, color);
         }
     }
 }
 
+
+
 int main(int argc, char** argv)
 {
     model = new Model("model/ring.obj");
     TGAImage image(width, height, TGAImage::RGB);
-    
+    float* zBuffer = new float[width * height];
+    for (int i = width * height; i--; zBuffer[i] = -std::numeric_limits<float>::max());
+
     for (int i = 0; i < model->nfaces(); i++)
     {
         std::vector<int> face = model->face(i);
-        Vec2i screen_coords[3];
+        Vec3f pts[3];
         for (int j = 0; j < 3; j++)
         {
-            Vec3f world_coords = model->vert(face[j]);
-            screen_coords[j] = Vec2i((world_coords.x + 1) * width / 2, (world_coords.y + 1) * height / 2);
+            Vec3f v = model->vert(face[j]);
+            //[-1, 1] -> [0, width]
+            pts[j] = Vec3f(int((v.x + 1) * width / 2 + 0.5), int((v.y + 1) * height / 2 + 0.5), v.z);
         }
-        DrawTriangle(screen_coords, image, TGAColor(rand() % 255, rand() % 255, rand() % 255, 255));
+        DrawTriangle(pts, zBuffer, image, TGAColor(rand()%255, rand()%255, rand()%255, 255));
     }
 
     image.flip_vertically();
