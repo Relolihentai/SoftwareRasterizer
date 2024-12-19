@@ -25,6 +25,12 @@ struct Vec2
     {
         return Vec2<T>(u + V.u, v + V.v);
     }
+    inline Vec2<T>& operator+=(const Vec2<T>& V)
+    {
+        x += V.x;
+        y += V.y;
+        return *this;
+    }
     inline Vec2<T> operator-(const Vec2<T>& V) const
     {
         return Vec2<T>(u - V.u, v - V.v);
@@ -70,15 +76,40 @@ struct Vec3
     }
     inline Vec3<T> operator+(const Vec3<T>& v) const
     {
-        return Vec2<T>(x + v.x, y + v.y, z + v.z);
+        return Vec3<T>(x + v.x, y + v.y, z + v.z);
+    }
+    inline Vec3<T>& operator+=(const Vec3<T>& v)
+    {
+        x += v.x;
+        y += v.y;
+        z += v.z;
+        return *this;
+    }
+    inline Vec3<T>& operator+=(const T f)
+    {
+        x += f;
+        y += f;
+        z += f;
+        return *this;
     }
     inline Vec3<T> operator-(const Vec3<T>& v) const
     {
         return Vec3<T>(x - v.x, y - v.y, z - v.z);
     }
-    inline Vec3<T> operator*(float f) const
+    inline Vec3<T> operator*(const T f) const
     {
         return Vec3<T>(x * f, y * f, z * f);
+    }
+    inline Vec3<T> operator/(const T f) const
+    {
+        return Vec3<T>(x / f, y / f, z / f);
+    }
+    inline Vec3<T> operator/=(const T f)
+    {
+        x /= f;
+        y /= f;
+        z /= f;
+        return *this;
     }
     inline T& operator[](int index)
     {
@@ -93,7 +124,7 @@ struct Vec3
     {
         return x * v.x + y * v.y + z * v.z;
     }
-    float norm() const
+    T norm() const
     {
         return std::sqrt(x * x + y * y + z * z);
     }

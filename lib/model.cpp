@@ -18,21 +18,39 @@ Model::Model(const char* fileName) : verts(), faces()
         {
             iss >> trash;
             Vec3f v;
-            for(int i = 0; i < 3; i++)
-            {
-                iss >> v.raw[i];
-            }
+            for(int i = 0; i < 3; i++) iss >> v.raw[i];
             verts.push_back(v);
+        }
+        else if (!line.compare(0, 3, "vt "))
+        {
+            iss >> trash;
+            iss >> trash;
+            Vec2f uv;
+            for (int i = 0; i < 2; i++) iss >> uv.raw[i];
+            uvs.push_back(uv);
+        }
+        else if (!line.compare(0, 3, "vn "))
+        {
+            iss >> trash;
+            iss >> trash;
+            Vec3f normal;
+            for (int i = 0; i < 3; i++) iss >> normal.raw[i];
+            normals.push_back(normal);
         }
         else if (!line.compare(0, 2, "f "))
         {
-            std::vector<int> f;
-            int itrash, index;
+            faceIndex f;
             iss >> trash;
-            while (iss >> index >> trash >> itrash >> trash >> itrash)
+            for (int i = 0; i < 3; i++)
             {
-                index--;
-                f.push_back(index);
+                iss >> f.vert[i];
+                f.vert[i]--;
+                iss >> trash;
+                iss >> f.uv[i];
+                f.uv[i]--;
+                iss >> trash;
+                iss >> f.normal[i];
+                f.normal[i]--;
             }
             faces.push_back(f);
         }
@@ -50,11 +68,19 @@ int Model::nfaces()
 {
     return (int)faces.size();
 }
-std::vector<int> Model::face(int index)
+faceIndex Model::face(int index)
 {
     return faces[index];
 }
 Vec3f Model::vert(int i )
 {
     return verts[i];
+}
+Vec3f Model::normal(int i)
+{
+    return normals[i];
+}
+Vec2f Model::uv(int i)
+{
+    return uvs[i];
 }

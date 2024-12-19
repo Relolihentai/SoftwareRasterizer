@@ -133,7 +133,7 @@ Vec3f barycentric(Vec2i *pts, Vec2i P) {
     // return Vec3f(a, b, c);
 }
 
-void DrawTriangle(Vec3f* pts, float* zBuffer, TGAImage& image, const TGAColor& color)
+void DrawTriangle(Vec3f* pts, Vec3f* pts_normal, Vec2f* pts_uv, float* zBuffer, TGAImage& texture, TGAImage& image, const TGAColor& color)
 {
     Vec2f bboxmin(std::numeric_limits<float>::max(), std::numeric_limits<float>::max());
     Vec2f bboxmax(-std::numeric_limits<float>::max(), -std::numeric_limits<float>::max());
@@ -158,7 +158,19 @@ void DrawTriangle(Vec3f* pts, float* zBuffer, TGAImage& image, const TGAColor& c
             if (zBuffer[int(p.x + p.y * width)] < p.z)
             {
                 zBuffer[int(p.x + p.y * width)] = p.z;
-                image.set(p.x, p.y, color);
+
+                Vec3f pixelNormal;
+                Vec2f pixelUV;
+                for (int i = 0; i < 3; i++) 
+                {
+                    pixelNormal += pts_normal[i] * bc_screen[i];
+                    pixelUV += pts_uv[i] * bc_screen[i];
+                }
+                pixelNormal.normalize();
+                pixelNormal += 1.0;
+                pixelNormal /= 2.0;
+                TGAColor normalColor = TGAColor(pixelNormal.x * 255, pixelNormal.y * 255, pixelNormal.z * 255, 255);
+                image.set(p.x, p.y, texture.get(pixelUV.x * texture.get_width(), pixelUV.y * texture.get_height()));
             }
         }
     }
@@ -189,26 +201,31 @@ void DrawTriangle(Vec2i* pts, TGAImage& image, const TGAColor& color)
     }
 }
 
-
-
 int main(int argc, char** argv)
 {
     model = new Model("model/ring.obj");
+    TGAImage texture;
+    texture.read_tga_file("model/soyo.tga");
     TGAImage image(width, height, TGAImage::RGB);
     float* zBuffer = new float[width * height];
     for (int i = width * height; i--; zBuffer[i] = -std::numeric_limits<float>::max());
 
     for (int i = 0; i < model->nfaces(); i++)
     {
-        std::vector<int> face = model->face(i);
+        faceIndex face = model->face(i);
         Vec3f pts[3];
+        Vec3f pts_normal[3];
+        Vec2f pts_uv[3];
         for (int j = 0; j < 3; j++)
         {
-            Vec3f v = model->vert(face[j]);
+            Vec3f v = model->vert(face.vert[j]);
+            pts_normal[j] = model->normal(face.normal[j]);
+            pts_uv[j] = model->uv(face.uv[j]);
+            
             //[-1, 1] -> [0, width]
             pts[j] = Vec3f(int((v.x + 1) * width / 2 + 0.5), int((v.y + 1) * height / 2 + 0.5), v.z);
         }
-        DrawTriangle(pts, zBuffer, image, TGAColor(rand()%255, rand()%255, rand()%255, 255));
+        DrawTriangle(pts, pts_normal, pts_uv, zBuffer, texture, image, TGAColor(rand()%255, rand()%255, rand()%255, 255));
     }
 
     image.flip_vertically();
